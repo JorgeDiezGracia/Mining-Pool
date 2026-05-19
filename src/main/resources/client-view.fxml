@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" style="-fx-padding: 15;" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="client.MiningClientController">
+
+    <Label text="Mining Pool Client" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+
+    <HBox spacing="10">
+        <Button fx:id="connectButton" text="Connect" onAction="#onConnect"/>
+        <Label fx:id="statusLabel" text="Disconnected" style="-fx-font-weight: bold;"/>
+        <Label fx:id="saltLabel" text="Salt: -"/>
+    </HBox>
+
+    <Label text="Progress:"/>
+    <ProgressBar fx:id="progressBar" progress="0" prefWidth="570" prefHeight="25"
+                 style="-fx-accent: #0078d4;"/>
+
+    <Label text="Log:"/>
+    <TextArea fx:id="logArea" editable="false" prefHeight="250" wrapText="true"/>
+
+</VBox>

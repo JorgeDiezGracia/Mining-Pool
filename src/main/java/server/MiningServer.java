@@ -12,12 +12,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MiningServer {
 
     private static final int PORT = 9000;
-    private static final int RANGE_PER_CLIENT = 1000;
+    private static final int RANGE_PER_CLIENT = 1000000;
 
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
     private final AtomicBoolean solutionFound = new AtomicBoolean(false);
     private String currentBlock = "";
-    private final int difficulty = 2;
+    private final int difficulty = 4;
 
     public static void main(String[] args) throws IOException {
         new MiningServer().start();
