@@ -7,6 +7,10 @@ import javafx.scene.control.*;
 import java.io.*;
 import java.net.Socket;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MiningClientController {
 
@@ -18,11 +22,14 @@ public class MiningClientController {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9000;
+    private static final int NUM_THREADS = 4; // hilos de minado
 
     private PrintWriter out;
     private volatile boolean running = false;
     private volatile boolean mining  = false;
     private final int difficulty = 4;
+    private final AtomicBoolean localSolutionFound = new AtomicBoolean(false);
+    private ExecutorService miningPool;
 
     @FXML
     public void onConnect() {
@@ -65,52 +72,89 @@ public class MiningClientController {
         } else if (message.startsWith(Protocol.NEW_REQUEST)) {
             out.println(Protocol.ACK);
             mining = true;
+            localSolutionFound.set(false);
+
             String[] parts = message.split(" ", 3);
             String[] range = parts[1].split("-");
             int start = Integer.parseInt(range[0]);
             int end   = Integer.parseInt(range[1]);
             String blockData = parts[2];
+
             setStatus("Mining " + start + " - " + end + "...");
             setProgress(0.0);
             Platform.runLater(() -> saltLabel.setText("Salt: -"));
-            new Thread(() -> mine(blockData, start, end)).start();
+
+            mineWithThreads(blockData, start, end);
 
         } else if (message.startsWith(Protocol.END)) {
-            mining  = false;
+            mining = false;
             running = false;
+            if (miningPool != null) miningPool.shutdownNow();
             setStatus("Done ✓ Solution found!");
             setProgress(1.0);
         }
     }
 
-    private void mine(String blockData, int start, int end) {
+    private void mineWithThreads(String blockData, int start, int end) {
+        int total = end - start + 1;
+        int chunkSize = total / NUM_THREADS;
+
+        miningPool = Executors.newFixedThreadPool(NUM_THREADS);
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            int chunkStart = start + i * chunkSize;
+            int chunkEnd = (i == NUM_THREADS - 1) ? end : chunkStart + chunkSize - 1;
+            final int threadId = i + 1;
+
+            log("[Client] Thread " + threadId + " assigned range " + chunkStart + "-" + chunkEnd);
+
+            futures.add(miningPool.submit(() ->
+                    mineChunk(blockData, chunkStart, chunkEnd, threadId, total)
+            ));
+        }
+
+        // Hilo monitor que espera a que terminen todos
+        new Thread(() -> {
+            for (Future<?> f : futures) {
+                try { f.get(); } catch (Exception ignored) {}
+            }
+            miningPool.shutdown();
+            if (!localSolutionFound.get() && mining) {
+                log("[Client] All ranges exhausted, nothing found.");
+                setProgress(1.0);
+            }
+        }).start();
+    }
+
+    private void mineChunk(String blockData, int start, int end, int threadId, int totalRange) {
         String prefix = "0".repeat(difficulty);
-        int total = end - start;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            for (int salt = start; salt <= end && mining; salt++) {
+            for (int salt = start; salt <= end && mining && !localSolutionFound.get(); salt++) {
                 byte[] hashBytes = digest.digest((blockData + salt).getBytes("UTF-8"));
                 StringBuilder hex = new StringBuilder();
                 for (byte b : hashBytes) hex.append(String.format("%02x", b));
 
                 if ((salt - start) % 1000 == 0) {
-                    double progress = (double)(salt - start) / total;
-                    setProgress(progress);
+                    double progress = (double)(salt - start) / totalRange;
+                    setProgress(Math.min(progress, 1.0));
                 }
 
                 if (hex.toString().startsWith(prefix)) {
-                    final int foundSalt = salt;
-                    log("[Client] FOUND! Salt=" + foundSalt);
-                    Platform.runLater(() -> saltLabel.setText("Salt: " + foundSalt));
-                    out.println(Protocol.SOL + " " + foundSalt);
-                    mining = false;
+                    if (localSolutionFound.compareAndSet(false, true)) {
+                        final int foundSalt = salt;
+                        log("[Client] Thread " + threadId + " FOUND! Salt=" + foundSalt);
+                        Platform.runLater(() -> saltLabel.setText("Salt: " + foundSalt));
+                        out.println(Protocol.SOL + " " + foundSalt);
+                        mining = false;
+                        if (miningPool != null) miningPool.shutdownNow();
+                    }
                     return;
                 }
             }
-            log("[Client] Range exhausted, nothing found.");
-            setProgress(1.0);
         } catch (Exception e) {
-            log("[Client] Mining error: " + e.getMessage());
+            if (mining) log("[Client] Thread " + threadId + " error: " + e.getMessage());
         }
     }
 
