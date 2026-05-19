@@ -11,6 +11,7 @@ public class MiningClientApp extends Application {
     public void start(Stage stage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/client-view.fxml"));
         Scene scene = new Scene(loader.load(), 600, 400);
+        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm()); // añade aquí
         stage.setTitle("Mining Pool - Client");
         stage.setScene(scene);
         stage.show();

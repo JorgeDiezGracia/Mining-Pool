@@ -22,7 +22,7 @@ public class MiningClientController {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9000;
-    private static final int NUM_THREADS = 4; // hilos de minado
+    private static final int NUM_THREADS = 5; // hilos de minado
 
     private PrintWriter out;
     private volatile boolean running = false;
@@ -35,7 +35,7 @@ public class MiningClientController {
     public void onConnect() {
         connectButton.setDisable(true);
         statusLabel.setText("Connecting...");
-        progressBar.setProgress(0.1);
+        progressBar.setProgress(0.5);
         running = true;
         new Thread(this::startConnection).start();
     }
@@ -137,7 +137,7 @@ public class MiningClientController {
                 for (byte b : hashBytes) hex.append(String.format("%02x", b));
 
                 if ((salt - start) % 1000 == 0) {
-                    double progress = (double)(salt - start) / totalRange;
+                    double progress = (double)(salt - start) / (totalRange / NUM_THREADS);
                     setProgress(Math.min(progress, 1.0));
                 }
 

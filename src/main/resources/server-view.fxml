@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" style="-fx-padding: 15;" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="server.MiningServerController">
+
+    <Label text="Mining Pool Server" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+
+    <HBox spacing="20">
+        <VBox spacing="5" prefWidth="200">
+            <Label text="Connected Clients:" style="-fx-font-weight: bold;"/>
+            <Label fx:id="totalClientsLabel" text="Total clients: 0"/>
+            <ListView fx:id="clientListView" prefHeight="150"/>
+        </VBox>
+
+        <VBox spacing="5" HBox.hgrow="ALWAYS">
+            <Label text="Current Block:" style="-fx-font-weight: bold;"/>
+            <TextArea fx:id="blockArea" editable="false" prefHeight="150" wrapText="true"/>
+        </VBox>
+    </HBox>
+
+    <Label fx:id="solutionLabel" text="Last solution: none"
+           style="-fx-font-weight: bold; -fx-text-fill: #0078d4;"/>
+
+    <Label text="Server Log:" style="-fx-font-weight: bold;"/>
+    <TextArea fx:id="logArea" editable="false" prefHeight="200" wrapText="true" VBox.vgrow="ALWAYS"/>
+
+</VBox>

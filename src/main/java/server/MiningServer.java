@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class MiningServer {
 
@@ -18,13 +19,22 @@ public class MiningServer {
     private final AtomicBoolean solutionFound = new AtomicBoolean(false);
     private String currentBlock = "";
     private final int difficulty = 4;
+    private MiningServerController controller;
+
+    // Constructor sin UI (para usar sin JavaFX)
+    public MiningServer() {}
+
+    // Constructor con UI
+    public MiningServer(MiningServerController controller) {
+        this.controller = controller;
+    }
 
     public static void main(String[] args) throws IOException {
         new MiningServer().start();
     }
 
     public void start() throws IOException {
-        System.out.println("[Server] Starting on port " + PORT);
+        log("[Server] Starting on port " + PORT);
         ServerSocket serverSocket = new ServerSocket(PORT);
 
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
@@ -33,7 +43,7 @@ public class MiningServer {
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
-            System.out.println("[Server] New connection: " + clientSocket.getInetAddress());
+            log("[Server] New connection: " + clientSocket.getInetAddress());
             ClientHandler handler = new ClientHandler(clientSocket, this, clients.size() + 1);
             new Thread(handler).start();
         }
@@ -42,7 +52,8 @@ public class MiningServer {
     public synchronized void registerClient(ClientHandler client) {
         clients.add(client);
         client.sendMessage(Protocol.ACK + " - " + clients.size() + " total clients");
-        System.out.println("[Server] Client " + client.getId() + " registered. Total: " + clients.size());
+        log("[Server] Client " + client.getId() + " registered. Total: " + clients.size());
+        updateClientList();
         if (!currentBlock.isEmpty()) {
             int i = clients.indexOf(client);
             assignRange(client, i * RANGE_PER_CLIENT, (i + 1) * RANGE_PER_CLIENT - 1);
@@ -51,17 +62,19 @@ public class MiningServer {
 
     public synchronized void removeClient(ClientHandler client) {
         clients.remove(client);
-        System.out.println("[Server] Client " + client.getId() + " removed. Total: " + clients.size());
+        log("[Server] Client " + client.getId() + " removed. Total: " + clients.size());
+        updateClientList();
     }
 
     public synchronized void broadcastNewBlock() {
         if (clients.isEmpty()) {
-            System.out.println("[Server] No clients connected, skipping.");
+            log("[Server] No clients connected, skipping.");
             return;
         }
         solutionFound.set(false);
         currentBlock = BlockGenerator.generateBlock(5);
-        System.out.println("[Server] New block generated: " + currentBlock);
+        log("[Server] New block: " + currentBlock);
+        if (controller != null) controller.updateBlock(currentBlock);
 
         for (int i = 0; i < clients.size(); i++) {
             assignRange(clients.get(i), i * RANGE_PER_CLIENT, (i + 1) * RANGE_PER_CLIENT - 1);
@@ -71,7 +84,7 @@ public class MiningServer {
     private void assignRange(ClientHandler client, int start, int end) {
         client.setRange(start, end);
         client.sendMessage(Protocol.NEW_REQUEST + " " + start + "-" + end + " " + currentBlock);
-        System.out.println("[Server] Range " + start + "-" + end + " → client " + client.getId());
+        log("[Server] Range " + start + "-" + end + " → client " + client.getId());
     }
 
     public synchronized void validateSolution(ClientHandler finder, int salt) {
@@ -87,13 +100,28 @@ public class MiningServer {
 
             if (hash.startsWith(prefix)) {
                 solutionFound.set(true);
-                System.out.println("[Server] Valid! Salt=" + salt + " Hash=" + hash);
+                log("[Server] Valid! Salt=" + salt + " Hash=" + hash);
+                if (controller != null) controller.updateSolution(salt, hash);
                 for (ClientHandler c : clients) c.sendMessage(Protocol.END + " " + salt);
             } else {
-                System.out.println("[Server] Invalid solution from client " + finder.getId());
+                log("[Server] Invalid solution from client " + finder.getId());
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void log(String message) {
+        System.out.println(message);
+        if (controller != null) controller.log(message);
+    }
+
+    private void updateClientList() {
+        if (controller != null) {
+            List<String> names = clients.stream()
+                    .map(c -> "Client " + c.getId())
+                    .collect(Collectors.toList());
+            controller.updateClients(names);
         }
     }
 }
